@@ -168,11 +168,46 @@ void limit(int what, long l) {
   struct rlimit r;
 
   if (getrlimit(what, &r) == -1) fatal("unable to getrlimit()");
-  if ((l < 0) || (l > r.rlim_max))
+  if (l < 0) {
+    /* 
+     * set the limit to the maximum
+     */
     r.rlim_cur =r.rlim_max;
-  else
+    if (setrlimit(what, &r) == -1) fatal("unable to setrlimit() to current maximum");
+    return;
+  }
+
+  if (l > r.rlim_max) {
+    /* 
+     * try to raise the limit beyond the current maximum
+     * (this is possible if we have the CAP_SYS_RESOURCE capability)
+     */
     r.rlim_cur =l;
-  if (setrlimit(what, &r) == -1) fatal("unable to setrlimit()");
+    if (setrlimit(what, &r) == -1) {
+      if (errno == EPERM) {
+        if (verbose) warn("limit cannot be increased beyond current maximum");
+        r.rlim_cur =r.rlim_max;
+        if (setrlimit(what, &r) == -1) fatal("unable to setrlimit() to current maximum");
+        return;
+      }
+      else {
+        fatal("unable to setrlimit()");
+        return;
+      } 
+    } else {
+      /*
+       * succeeded in setting a higher limit
+       */
+      return;
+    }
+  }
+  
+  /*
+   * lower limit below current maximum
+   */
+  r.rlim_cur =l;
+  if (setrlimit(what, &r) == -1) fatal("unable to setrlimit() to lower limit");
+  return;
 }
 void slimit() {
   if (limitd >= -1) {
