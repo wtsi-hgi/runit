@@ -179,14 +179,17 @@ void limit(int what, long l) {
 
   if (l > r.rlim_max) {
     /* 
-     * try to raise the limit beyond the current maximum
+     * try to raise the hard limit beyond the current maximum
      * (this is possible if we have the CAP_SYS_RESOURCE capability)
      */
+    rlim_t max = r.rlim_max;
     r.rlim_cur =l;
+    r.rlim_max =l;
     if (setrlimit(what, &r) == -1) {
       if (errno == EPERM) {
         if (verbose) warn("limit cannot be increased beyond current maximum");
-        r.rlim_cur =r.rlim_max;
+        r.rlim_max =max;
+        r.rlim_cur =max;
         if (setrlimit(what, &r) == -1) fatal("unable to setrlimit() to current maximum");
         return;
       }
